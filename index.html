@@ -1,10 +1,10 @@
-  
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Distribuidora Rezende | Estoque</title>
+<title>Distribuidora Rezende - Estoque</title>
 <script src="https://unpkg.com/html5-qrcode"></script>
 <style>
 *{box-sizing:border-box}
@@ -25,12 +25,11 @@ button.secondary{background:#e2e8f0;color:#172033}
 button.danger{background:#b91c1c;width:auto;padding:7px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .item{padding:12px 0;border-bottom:1px solid #e2e8f0}
-.item:last-child{border-bottom:0}
 .item strong{display:block;margin-bottom:5px}
 .small{font-size:12px;color:#64748b}
 .tag{display:inline-block;background:#dcfce7;color:#166534;padding:4px 7px;border-radius:5px;font-size:11px}
 .low{background:#fef3c7;color:#92400e}
-#msg,#scanMsg{font-size:13px;color:#166534;margin-top:8px}
+#msg,#scanMsg{font-size:13px;margin-top:8px;overflow-wrap:anywhere}
 #reader{width:100%;margin-top:12px}
 #reader:empty{display:none}
 @media(min-width:650px){
@@ -44,7 +43,6 @@ button.danger{background:#b91c1c;width:auto;padding:7px}
 <h1>📦 Distribuidora Rezende</h1>
 <p>Gestão de estoque e movimentações</p>
 </header>
-
 <main>
 <div class="cards">
 <div class="card"><span>Produtos cadastrados</span><strong id="total">0</strong></div>
@@ -58,15 +56,13 @@ button.danger{background:#b91c1c;width:auto;padding:7px}
 <h2>➕ Cadastrar produto</h2>
 <form id="productForm">
 <label>Nome do produto</label>
-<input id="name" required placeholder="Ex.: Refrigerante 2 litros">
-
+<input id="name" required placeholder="Ex.: Coca-Cola 2 litros">
 <label>Código de barras</label>
-<input id="barcode" placeholder="Digite ou use a câmera">
+<input id="barcode" placeholder="Digite ou escaneie">
 <button type="button" id="scanBtn">📷 Escanear código de barras</button>
 <button type="button" class="secondary" id="stopBtn" hidden>Parar câmera</button>
 <div id="reader"></div>
 <div id="scanMsg" aria-live="polite"></div>
-
 <div class="row">
 <div><label>Preço de compra (R$)</label><input id="cost" type="number" min="0" step=".01" value="0" required></div>
 <div><label>Preço de venda (R$)</label><input id="price" type="number" min="0" step=".01" value="0" required></div>
@@ -86,10 +82,7 @@ button.danger{background:#b91c1c;width:auto;padding:7px}
 <label>Produto</label>
 <select id="productSelect" required><option value="">Cadastre um produto primeiro</option></select>
 <label>Tipo de movimentação</label>
-<select id="type">
-<option value="in">Entrada de mercadoria</option>
-<option value="out">Saída / venda</option>
-</select>
+<select id="type"><option value="in">Entrada de mercadoria</option><option value="out">Saída / venda</option></select>
 <label>Quantidade</label>
 <input id="amount" type="number" min="1" step="1" required placeholder="Ex.: 2">
 <button type="submit">Registrar movimentação</button>
@@ -109,26 +102,25 @@ button.danger{background:#b91c1c;width:auto;padding:7px}
 <div id="history"></div>
 <button class="secondary" id="export">Exportar produtos em CSV</button>
 </section>
-<p class="small">Distribuidora Rezende — versão de testes. Os dados ficam neste navegador. Exporte seus dados regularmente.</p>
+<p class="small">Distribuidora Rezende — versão de testes. Dados salvos neste navegador. Exporte seus dados regularmente.</p>
 </main>
 
 <script>
 const $ = id => document.getElementById(id);
 const money = n => Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-
 let products = [];
 let history = [];
 let scanner = null;
-let scanLocked = false;
+let starting = false;
 
 try {
   products = JSON.parse(localStorage.getItem('estoqueProProducts') || '[]');
   history = JSON.parse(localStorage.getItem('estoqueProHistory') || '[]');
-  if (!Array.isArray(products)) products = [];
-  if (!Array.isArray(history)) history = [];
+  if(!Array.isArray(products)) products=[];
+  if(!Array.isArray(history)) history=[];
 } catch(e) {
-  products = [];
-  history = [];
+  products=[];
+  history=[];
 }
 
 function save(){
@@ -137,47 +129,41 @@ function save(){
 }
 
 function render(){
-  $('total').textContent = products.length;
-  $('units').textContent = products.reduce((s,p)=>s+Number(p.qty||0),0);
-  $('value').textContent = money(products.reduce((s,p)=>s+Number(p.qty||0)*Number(p.cost||0),0));
-  $('alerts').textContent = products.filter(p=>Number(p.qty||0)<=Number(p.minimum||0)).length;
+  $('total').textContent=products.length;
+  $('units').textContent=products.reduce((s,p)=>s+Number(p.qty||0),0);
+  $('value').textContent=money(products.reduce((s,p)=>s+Number(p.qty||0)*Number(p.cost||0),0));
+  $('alerts').textContent=products.filter(p=>Number(p.qty||0)<=Number(p.minimum||0)).length;
 
-  const old = $('productSelect').value;
-  $('productSelect').innerHTML = '<option value="">Selecione um produto</option>';
-
+  const old=$('productSelect').value;
+  $('productSelect').innerHTML='<option value="">Selecione um produto</option>';
   products.forEach(p=>{
-    const o = document.createElement('option');
-    o.value = p.id;
-    o.textContent = p.name+' — estoque: '+p.qty;
+    const o=document.createElement('option');
+    o.value=p.id;
+    o.textContent=p.name+' — estoque: '+p.qty;
     $('productSelect').appendChild(o);
   });
-
   if(products.some(p=>p.id===old)) $('productSelect').value=old;
 
-  const term = $('search').value.toLowerCase();
-  const list = products.filter(p=>
+  const term=$('search').value.toLowerCase();
+  const list=products.filter(p=>
     String(p.name||'').toLowerCase().includes(term) ||
     String(p.barcode||'').toLowerCase().includes(term)
   );
-
-  $('inventory').innerHTML = '';
+  $('inventory').innerHTML='';
   if(!list.length) $('inventory').innerHTML='<p class="small">Nenhum produto encontrado.</p>';
 
   list.forEach(p=>{
-    const div = document.createElement('div');
+    const div=document.createElement('div');
     div.className='item';
-    const title = document.createElement('strong');
+    const title=document.createElement('strong');
     title.textContent=p.name+' ';
     const tag=document.createElement('span');
     tag.className='tag'+(p.qty<=p.minimum?' low':'');
     tag.textContent=p.qty<=p.minimum?'Estoque baixo':'Disponível';
     title.appendChild(tag);
-
     const detail=document.createElement('div');
     detail.className='small';
-    detail.textContent='Código: '+(p.barcode||'—')+
-      ' | Quantidade: '+p.qty+' | Venda: '+money(p.price);
-
+    detail.textContent='Código: '+(p.barcode||'—')+' | Quantidade: '+p.qty+' | Venda: '+money(p.price);
     const del=document.createElement('button');
     del.className='danger';
     del.textContent='Excluir';
@@ -194,7 +180,6 @@ function render(){
 
   $('history').innerHTML='';
   if(!history.length) $('history').innerHTML='<p class="small">Nenhuma movimentação registrada.</p>';
-
   history.slice(0,10).forEach(h=>{
     const div=document.createElement('div');
     div.className='item';
@@ -209,62 +194,78 @@ function render(){
 }
 
 async function stopScanner(){
-  if(scanner){
+  const current=scanner;
+  scanner=null;
+  if(current){
     try {
-      if(scanner.isScanning) await scanner.stop();
-      scanner.clear();
-    } catch(e) {}
-    scanner=null;
+      if(current.isScanning) await current.stop();
+    } catch(e) {
+      console.warn('Falha ao parar câmera:',e);
+    }
+    try { current.clear(); } catch(e) {}
   }
   $('reader').innerHTML='';
   $('stopBtn').hidden=true;
-  scanLocked=false;
+  starting=false;
 }
 
 $('scanBtn').addEventListener('click',async()=>{
-  if(!window.Html5Qrcode){
-    $('scanMsg').textContent='Não foi possível carregar o leitor. Verifique sua internet e tente novamente.';
+  if(starting || scanner) return;
+  starting=true;
+  $('scanMsg').style.color='#166534';
+  $('scanMsg').textContent='Abrindo câmera...';
+  $('stopBtn').hidden=false;
+
+  if(!window.isSecureContext){
+    $('scanMsg').style.color='#b91c1c';
+    $('scanMsg').textContent='O site precisa estar em HTTPS para acessar a câmera.';
+    $('stopBtn').hidden=true;
+    starting=false;
     return;
   }
 
-  await stopScanner();
-  $('scanMsg').textContent='Solicitando acesso à câmera...';
-  $('stopBtn').hidden=false;
+  if(!window.Html5Qrcode){
+    $('scanMsg').style.color='#b91c1c';
+    $('scanMsg').textContent='O leitor não carregou. Confira a internet, recarregue a página e tente novamente.';
+    $('stopBtn').hidden=true;
+    starting=false;
+    return;
+  }
 
-  try{
-    scanner = new Html5Qrcode('reader');
-    const cameras = await Html5Qrcode.getCameras();
-
-    if(!cameras.length) throw new Error('Nenhuma câmera encontrada.');
-
-    const back = cameras.find(c=>/back|rear|environment|traseira/i.test(c.label));
-    const cameraId = (back || cameras[0]).id;
-
+  try {
+    scanner=new Html5Qrcode('reader');
     await scanner.start(
-      cameraId,
-      {fps:10,qrbox:{width:280,height:120}},
+      {facingMode:'environment'},
+      {
+        fps:10,
+        qrbox:(w,h)=>({
+          width:Math.min(w*0.9,320),
+          height:Math.min(h*0.45,160)
+        }),
+        aspectRatio:1.777
+      },
       async decodedText=>{
-        if(scanLocked) return;
-        scanLocked=true;
         const code=decodedText.trim();
         $('barcode').value=code;
-        await stopScanner();
-
         const existing=products.find(p=>String(p.barcode||'')===code);
+        await stopScanner();
         if(existing){
           $('productSelect').value=existing.id;
-          $('scanMsg').textContent='Produto já cadastrado: '+existing.name+'. Selecione entrada ou saída na seção ao lado.';
+          $('scanMsg').textContent='Produto já cadastrado: '+existing.name+'. Registre a entrada ou saída na outra seção.';
         }else{
-          $('scanMsg').textContent='Código lido! Complete os dados do novo produto.';
+          $('scanMsg').textContent='Código lido! Preencha o nome e os preços para cadastrar.';
           $('name').focus();
         }
       },
       ()=>{}
     );
-    $('scanMsg').textContent='Aponte a câmera para o código de barras.';
-  }catch(e){
+    starting=false;
+    $('scanMsg').textContent='Câmera ativa. Aponte para o código de barras.';
+  } catch(e) {
+    const reason=e && e.message ? e.message : String(e);
     await stopScanner();
-    $('scanMsg').textContent='Não foi possível abrir a câmera. Permita o acesso à câmera no navegador e tente novamente.';
+    $('scanMsg').style.color='#b91c1c';
+    $('scanMsg').textContent='Não foi possível abrir a câmera: '+reason;
   }
 });
 
@@ -273,12 +274,11 @@ $('stopBtn').addEventListener('click',stopScanner);
 $('productForm').addEventListener('submit',e=>{
   e.preventDefault();
   const barcode=$('barcode').value.trim();
-
   if(barcode && products.some(p=>String(p.barcode||'')===barcode)){
-    $('msg').textContent='Esse código já está cadastrado. Use a seção de entrada ou saída.';
+    $('msg').style.color='#b91c1c';
+    $('msg').textContent='Esse código já está cadastrado. Use entrada ou saída.';
     return;
   }
-
   products.push({
     id:Date.now().toString(),
     name:$('name').value.trim(),
@@ -288,7 +288,6 @@ $('productForm').addEventListener('submit',e=>{
     qty:Number($('qty').value),
     minimum:Number($('minimum').value)
   });
-
   save();
   render();
   e.target.reset();
@@ -296,6 +295,7 @@ $('productForm').addEventListener('submit',e=>{
   $('price').value=0;
   $('qty').value=0;
   $('minimum').value=2;
+  $('msg').style.color='#166534';
   $('msg').textContent='Produto cadastrado com sucesso!';
   $('scanMsg').textContent='';
 });
@@ -305,21 +305,13 @@ $('moveForm').addEventListener('submit',e=>{
   const p=products.find(x=>x.id===$('productSelect').value);
   const qty=Number($('amount').value);
   if(!p||!Number.isInteger(qty)||qty<1)return;
-
   const type=$('type').value;
   if(type==='out'&&qty>p.qty){
     alert('Estoque insuficiente! Disponível: '+p.qty);
     return;
   }
-
   p.qty+=type==='in'?qty:-qty;
-  history.unshift({
-    name:p.name,
-    qty,
-    type,
-    date:new Date().toLocaleString('pt-BR')
-  });
-
+  history.unshift({name:p.name,qty,type,date:new Date().toLocaleString('pt-BR')});
   save();
   render();
   $('amount').value='';

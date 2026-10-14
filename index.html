@@ -1,0 +1,223 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estoque Pro</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#172033;font-family:Arial,sans-serif}
+header{background:#14243b;color:white;padding:22px 16px}
+header h1{margin:0 0 6px;font-size:25px}
+header p{margin:0;color:#cbd5e1;font-size:13px}
+main{max-width:950px;margin:auto;padding:16px}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card,.panel{background:white;padding:16px;border-radius:12px;margin-bottom:14px;box-shadow:0 2px 7px #0000000b}
+.card span{font-size:12px;color:#64748b}
+.card strong{display:block;font-size:23px;margin-top:8px}
+h2{font-size:18px;margin:0 0 14px}
+label{display:block;font-size:13px;margin:10px 0 5px}
+input,select,button{width:100%;padding:12px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px}
+button{border:0;background:#1767e8;color:white;font-weight:bold;margin-top:12px;cursor:pointer}
+button.secondary{background:#e2e8f0;color:#172033}
+button.danger{background:#b91c1c;width:auto;padding:7px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.item{padding:12px 0;border-bottom:1px solid #e2e8f0}
+.item:last-child{border-bottom:0}
+.item strong{display:block;margin-bottom:5px}
+.small{font-size:12px;color:#64748b}
+.tag{display:inline-block;background:#dcfce7;color:#166534;padding:4px 7px;border-radius:5px;font-size:11px}
+.low{background:#fef3c7;color:#92400e}
+#msg{font-size:13px;color:#166534;margin-top:8px}
+@media(min-width:650px){.cards{grid-template-columns:repeat(4,1fr)}.forms{display:grid;grid-template-columns:1fr 1fr;gap:14px}}
+</style>
+</head>
+<body>
+<header>
+<h1>📦 Estoque Pro</h1>
+<p>Controle de produtos e movimentações</p>
+</header>
+<main>
+<div class="cards">
+<div class="card"><span>Produtos cadastrados</span><strong id="total">0</strong></div>
+<div class="card"><span>Unidades em estoque</span><strong id="units">0</strong></div>
+<div class="card"><span>Valor do estoque</span><strong id="value">R$ 0,00</strong></div>
+<div class="card"><span>Estoque baixo</span><strong id="alerts">0</strong></div>
+</div>
+
+<div class="forms">
+<section class="panel">
+<h2>➕ Cadastrar produto</h2>
+<form id="productForm">
+<label>Nome do produto</label>
+<input id="name" required placeholder="Ex.: Fone Bluetooth">
+<label>Código de barras (opcional)</label>
+<input id="barcode" placeholder="Digite ou escaneie o código">
+<div class="row">
+<div><label>Preço de compra (R$)</label><input id="cost" type="number" min="0" step=".01" value="0" required></div>
+<div><label>Preço de venda (R$)</label><input id="price" type="number" min="0" step=".01" value="0" required></div>
+</div>
+<div class="row">
+<div><label>Quantidade inicial</label><input id="qty" type="number" min="0" step="1" value="0" required></div>
+<div><label>Alerta abaixo de</label><input id="minimum" type="number" min="0" step="1" value="2" required></div>
+</div>
+<button type="submit">Salvar produto</button>
+</form>
+<div id="msg"></div>
+</section>
+
+<section class="panel">
+<h2>🔄 Entrada ou saída</h2>
+<form id="moveForm">
+<label>Produto</label>
+<select id="productSelect" required><option value="">Cadastre um produto primeiro</option></select>
+<label>Tipo de movimentação</label>
+<select id="type"><option value="in">Entrada de mercadoria</option><option value="out">Saída / venda</option></select>
+<label>Quantidade</label>
+<input id="amount" type="number" min="1" step="1" required placeholder="Ex.: 2">
+<button type="submit">Registrar movimentação</button>
+</form>
+<p class="small">A saída não poderá ser maior que o estoque disponível.</p>
+</section>
+</div>
+
+<section class="panel">
+<h2>🔎 Pesquisar estoque</h2>
+<input id="search" placeholder="Digite o nome ou código do produto">
+<div id="inventory"></div>
+</section>
+
+<section class="panel">
+<h2>🕒 Últimas movimentações</h2>
+<div id="history"><p class="small">Nenhuma movimentação registrada.</p></div>
+<button class="secondary" id="export">Exportar produtos em CSV</button>
+</section>
+<p class="small">Estoque Pro — versão inicial. Os dados ficam neste navegador. Exporte seus dados regularmente.</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = n => Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+let products = [];
+let history = [];
+
+try {
+ products = JSON.parse(localStorage.getItem('estoqueProProducts') || '[]');
+ history = JSON.parse(localStorage.getItem('estoqueProHistory') || '[]');
+} catch(e) {
+ products = [];
+ history = [];
+}
+
+function save(){
+ localStorage.setItem('estoqueProProducts',JSON.stringify(products));
+ localStorage.setItem('estoqueProHistory',JSON.stringify(history));
+}
+
+function render(){
+ $('total').textContent=products.length;
+ $('units').textContent=products.reduce((s,p)=>s+p.qty,0);
+ $('value').textContent=money(products.reduce((s,p)=>s+p.qty*p.cost,0));
+ $('alerts').textContent=products.filter(p=>p.qty<=p.minimum).length;
+
+ const old=$('productSelect').value;
+ $('productSelect').innerHTML='<option value="">Selecione um produto</option>';
+ products.forEach(p=>{
+  const o=document.createElement('option');
+  o.value=p.id;o.textContent=p.name+' — estoque: '+p.qty;
+  $('productSelect').appendChild(o);
+ });
+ if(products.some(p=>p.id===old)) $('productSelect').value=old;
+
+ const term=$('search').value.toLowerCase();
+ const list=products.filter(p=>p.name.toLowerCase().includes(term)||p.barcode.toLowerCase().includes(term));
+ $('inventory').innerHTML=list.length?'':'<p class="small">Nenhum produto encontrado.</p>';
+ list.forEach(p=>{
+  const div=document.createElement('div');
+  div.className='item';
+  const title=document.createElement('strong');
+  title.textContent=p.name+' ';
+  const tag=document.createElement('span');
+  tag.className='tag'+(p.qty<=p.minimum?' low':'');
+  tag.textContent=p.qty<=p.minimum?'Estoque baixo':'Disponível';
+  title.appendChild(tag);
+  const detail=document.createElement('div');
+  detail.className='small';
+  detail.textContent='Código: '+(p.barcode||'—')+' | Quantidade: '+p.qty+' | Venda: '+money(p.price);
+  const del=document.createElement('button');
+  del.className='danger';del.textContent='Excluir';
+  del.onclick=()=>{
+   if(confirm('Excluir '+p.name+'?')){
+    products=products.filter(x=>x.id!==p.id);
+    save();render();
+   }
+  };
+  div.append(title,detail,del);
+  $('inventory').appendChild(div);
+ });
+
+ $('history').innerHTML='';
+ if(!history.length) $('history').innerHTML='<p class="small">Nenhuma movimentação registrada.</p>';
+ history.slice(0,10).forEach(h=>{
+  const div=document.createElement('div');div.className='item';
+  const strong=document.createElement('strong');
+  strong.textContent=(h.type==='in'?'Entrada: ':'Saída: ')+h.name;
+  const detail=document.createElement('div');detail.className='small';
+  detail.textContent=h.qty+' unidade(s) · '+h.date;
+  div.append(strong,detail);$('history').appendChild(div);
+ });
+}
+
+$('productForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const barcode=$('barcode').value.trim();
+ if(barcode&&products.some(p=>p.barcode===barcode)){
+  $('msg').textContent='Esse código já está cadastrado.';
+  return;
+ }
+ products.push({
+  id:Date.now().toString(),
+  name:$('name').value.trim(),barcode,
+  cost:Number($('cost').value),price:Number($('price').value),
+  qty:Number($('qty').value),minimum:Number($('minimum').value)
+ });
+ save();render();e.target.reset();
+ $('cost').value=0;$('price').value=0;$('qty').value=0;$('minimum').value=2;
+ $('msg').textContent='Produto cadastrado com sucesso!';
+});
+
+$('moveForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const p=products.find(x=>x.id===$('productSelect').value);
+ const qty=Number($('amount').value);
+ if(!p||!Number.isInteger(qty)||qty<1)return;
+ const type=$('type').value;
+ if(type==='out'&&qty>p.qty){
+  alert('Estoque insuficiente! Disponível: '+p.qty);
+  return;
+ }
+ p.qty+=type==='in'?qty:-qty;
+ history.unshift({
+  name:p.name,qty,type,
+  date:new Date().toLocaleString('pt-BR')
+ });
+ save();render();$('amount').value='';
+});
+
+$('search').addEventListener('input',render);
+
+$('export').addEventListener('click',()=>{
+ const rows=[['Nome','Codigo','Compra','Venda','Quantidade','Estoque minimo'],
+ ...products.map(p=>[p.name,p.barcode,p.cost,p.price,p.qty,p.minimum])];
+ const csv=rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+ const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');
+ a.href=url;a.download='estoque.csv';a.click();
+ URL.revokeObjectURL(url);
+});
+render();
+</script>
+</body>
+</html>

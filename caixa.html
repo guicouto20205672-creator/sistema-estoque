@@ -1,0 +1,332 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caixa - Distribuidora Rezende</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#172033;font-family:Arial,sans-serif}
+header{background:#14243b;color:white;padding:20px}
+main{max-width:800px;margin:auto;padding:16px}
+.panel{background:white;padding:16px;border-radius:12px;margin-bottom:15px}
+h1{font-size:23px;margin:0 0 6px}
+h2{font-size:18px}
+label{display:block;margin:12px 0 5px;font-size:14px}
+input,select,button{width:100%;padding:13px;border-radius:8px;border:1px solid #cbd5e1;font-size:16px}
+button{background:#1767e8;color:white;border:0;font-weight:bold;margin-top:10px}
+.secondary{background:#e2e8f0;color:#172033}
+.item{padding:12px 0;border-bottom:1px solid #e2e8f0}
+.item button{width:auto;padding:7px 12px;background:#b91c1c}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1;min-width:0}
+.total{font-size:28px;font-weight:bold;color:#15803d}
+.small{font-size:12px;color:#64748b}
+#barcode{font-size:18px;border:2px solid #1767e8}
+</style>
+</head>
+<body>
+<header>
+<h1>🛒 Distribuidora Rezende</h1>
+<div>Frente de caixa — versão de testes</div>
+</header>
+<main>
+<section class="panel">
+<h2>📦 Ler produto</h2>
+<p class="small">Clique no campo, passe o produto no leitor e aguarde o código. Muitos leitores enviam Enter automaticamente.</p>
+<label>Código de barras</label>
+<input id="barcode" autocomplete="off" placeholder="Leia ou digite o código">
+<button id="add">Adicionar produto</button>
+<div id="msg" class="small" aria-live="polite"></div>
+<label>Ou selecione um produto</label>
+<select id="product"><option value="">Selecione um produto</option></select>
+<div class="row">
+<div>
+<label>Quantidade</label>
+<input id="qty" type="number" min="1" step="1" value="1">
+</div>
+<div>
+<button id="addSelected">Adicionar selecionado</button>
+</div>
+</div>
+</section>
+
+<section class="panel">
+<h2>🧾 Venda atual</h2>
+<div id="cart"></div>
+<p>Total da venda</p>
+<div class="total" id="total">R$ 0,00</div>
+<label>Forma de pagamento</label>
+<select id="payment">
+<option value="Pix">Pix</option>
+<option value="Dinheiro">Dinheiro</option>
+<option value="Cartão de crédito">Cartão de crédito</option>
+<option value="Cartão de débito">Cartão de débito</option>
+</select>
+<div id="cashArea" hidden>
+<label>Valor recebido em dinheiro (R$)</label>
+<input id="received" type="number" min="0" step="0.01">
+<p id="change" class="small"></p>
+</div>
+<button id="finish">Finalizar venda</button>
+<button id="clear" class="secondary">Cancelar venda atual</button>
+<div id="saleMsg" aria-live="polite"></div>
+</section>
+
+<section class="panel">
+<h2>📊 Resumo do caixa</h2>
+<div id="summary"></div>
+<button id="refresh" class="secondary">Atualizar dados do estoque</button>
+</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = n => Number(n).toLocaleString('pt-BR',{
+  style:'currency',currency:'BRL'
+});
+let products = [];
+let history = [];
+let cart = [];
+let sales = [];
+
+function load(){
+  try{
+    products=JSON.parse(localStorage.getItem('estoqueProProducts')||'[]');
+    history=JSON.parse(localStorage.getItem('estoqueProHistory')||'[]');
+    sales=JSON.parse(localStorage.getItem('estoqueProSales')||'[]');
+    if(!Array.isArray(products)) products=[];
+    if(!Array.isArray(history)) history=[];
+    if(!Array.isArray(sales)) sales=[];
+  }catch(e){
+    products=[];history=[];sales=[];
+  }
+  renderProducts();
+  renderCart();
+  renderSummary();
+}
+
+function renderProducts(){
+  const select=$('product');
+  const old=select.value;
+  select.innerHTML='<option value="">Selecione um produto</option>';
+  products.forEach(p=>{
+    const option=document.createElement('option');
+    option.value=String(p.id);
+    option.textContent=p.name+' — estoque: '+Number(p.qty||0);
+    select.appendChild(option);
+  });
+  select.value=old;
+}
+
+function addProduct(p,qty){
+  if(!p){
+    $('msg').textContent='Produto não encontrado. Cadastre-o primeiro no estoque.';
+    return;
+  }
+  qty=Number(qty);
+  if(!Number.isInteger(qty)||qty<1){
+    $('msg').textContent='Informe uma quantidade válida.';
+    return;
+  }
+  if(Number(p.qty||0)<qty){
+    $('msg').textContent='Estoque insuficiente. Disponível: '+p.qty;
+    return;
+  }
+  const item=cart.find(x=>String(x.id)===String(p.id));
+  const current=item?item.qty:0;
+  if(current+qty>Number(p.qty||0)){
+    $('msg').textContent='A quantidade no carrinho ultrapassa o estoque disponível.';
+    return;
+  }
+  if(item)item.qty+=qty;
+  else cart.push({
+    id:String(p.id),
+    name:p.name,
+    price:Number(p.price||0),
+    qty:qty
+  });
+  $('msg').textContent=p.name+' adicionado ao carrinho.';
+  $('barcode').value='';
+  $('qty').value=1;
+  renderCart();
+  $('barcode').focus();
+}
+
+function scan(){
+  const code=$('barcode').value.trim();
+  if(!code){
+    $('msg').textContent='Leia ou digite um código de barras.';
+    return;
+  }
+  const p=products.find(x=>String(x.barcode||'').trim()===code);
+  if(!p){
+    $('msg').textContent='Código não encontrado no estoque: '+code;
+    return;
+  }
+  addProduct(p,$('qty').value);
+}
+
+function renderCart(){
+  const el=$('cart');
+  el.innerHTML='';
+  if(!cart.length){
+    el.textContent='Nenhum produto adicionado.';
+  }
+  cart.forEach(item=>{
+    const div=document.createElement('div');
+    div.className='item';
+    const info=document.createElement('div');
+    info.textContent=item.name+' — '+item.qty+' × '+money(item.price)+' = '+money(item.qty*item.price);
+    const remove=document.createElement('button');
+    remove.textContent='Remover';
+    remove.onclick=()=>{
+      cart=cart.filter(x=>x.id!==item.id);
+      renderCart();
+    };
+    div.append(info,remove);
+    el.appendChild(div);
+  });
+  $('total').textContent=money(cart.reduce((s,x)=>s+x.qty*x.price,0));
+  updateCash();
+}
+
+function updateCash(){
+  const isCash=$('payment').value==='Dinheiro';
+  $('cashArea').hidden=!isCash;
+  const total=cart.reduce((s,x)=>s+x.qty*x.price,0);
+  const received=Number($('received').value);
+  $('change').textContent=isCash&&$('received').value!==''?
+    (received>=total?'Troco: '+money(received-total):
+    'Faltam: '+money(total-received)):'';
+}
+
+function renderSummary(){
+  const today=new Date().toLocaleDateString('pt-BR');
+  const todaySales=sales.filter(s=>s.dateLabel===today);
+  const total=todaySales.reduce((s,x)=>s+Number(x.total||0),0);
+  const methods={};
+  todaySales.forEach(s=>{
+    methods[s.payment]=(methods[s.payment]||0)+Number(s.total||0);
+  });
+  $('summary').innerHTML='';
+  const lines=[
+    'Vendas de hoje: '+todaySales.length,
+    'Total vendido: '+money(total),
+    ...Object.entries(methods).map(([k,v])=>k+': '+money(v))
+  ];
+  lines.forEach(line=>{
+    const p=document.createElement('p');
+    p.textContent=line;
+    $('summary').appendChild(p);
+  });
+}
+
+$('add').onclick=scan;
+$('barcode').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    scan();
+  }
+});
+$('addSelected').onclick=()=>{
+  const p=products.find(x=>String(x.id)===$('product').value);
+  addProduct(p,$('qty').value);
+};
+$('payment').onchange=updateCash;
+$('received').oninput=updateCash;
+$('clear').onclick=()=>{
+  if(confirm('Cancelar os produtos desta venda?')){
+    cart=[];
+    renderCart();
+    $('saleMsg').textContent='Venda cancelada. Nenhuma baixa foi feita.';
+  }
+};
+
+$('finish').onclick=()=>{
+  if(!cart.length){
+    $('saleMsg').textContent='Adicione produtos antes de finalizar.';
+    return;
+  }
+
+  // Recarrega o estoque mais recente antes de confirmar.
+  let latest;
+  try{
+    latest=JSON.parse(localStorage.getItem('estoqueProProducts')||'[]');
+  }catch(e){
+    $('saleMsg').textContent='Não foi possível ler o estoque.';
+    return;
+  }
+  if(!Array.isArray(latest)){
+    $('saleMsg').textContent='Dados do estoque inválidos.';
+    return;
+  }
+
+  for(const item of cart){
+    const p=latest.find(x=>String(x.id)===item.id);
+    if(!p||Number(p.qty||0)<item.qty){
+      $('saleMsg').textContent='Estoque insuficiente ou produto removido: '+item.name+'. Atualize o estoque.';
+      load();
+      return;
+    }
+  }
+
+  const total=cart.reduce((s,x)=>s+x.qty*x.price,0);
+  const payment=$('payment').value;
+  if(payment==='Dinheiro'&&
+    ( $('received').value==='' || Number($('received').value)<total)){
+    $('saleMsg').textContent='Informe um valor recebido suficiente.';
+    return;
+  }
+
+  const now=new Date();
+  const dateLabel=now.toLocaleDateString('pt-BR');
+  const date=now.toLocaleString('pt-BR');
+  const saleItems=cart.map(item=>({...item}));
+
+  saleItems.forEach(item=>{
+    const p=latest.find(x=>String(x.id)===item.id);
+    p.qty=Number(p.qty||0)-item.qty;
+    history.unshift({
+      name:p.name,
+      qty:item.qty,
+      type:'out',
+      date:date+' — Venda no caixa'
+    });
+  });
+
+  const sale={
+    id:Date.now().toString(),
+    date:date,
+    dateLabel:dateLabel,
+    items:saleItems,
+    total:total,
+    payment:payment
+  };
+
+  try{
+    localStorage.setItem('estoqueProProducts',JSON.stringify(latest));
+    localStorage.setItem('estoqueProHistory',JSON.stringify(history));
+    sales.unshift(sale);
+    localStorage.setItem('estoqueProSales',JSON.stringify(sales));
+  }catch(e){
+    $('saleMsg').textContent='Erro ao salvar. Verifique o armazenamento antes de tentar novamente.';
+    return;
+  }
+
+  products=latest;
+  cart=[];
+  $('received').value='';
+  $('saleMsg').textContent='Venda registrada! Estoque atualizado. Total: '+money(total);
+  renderProducts();
+  renderCart();
+  renderSummary();
+  $('barcode').focus();
+};
+
+$('refresh').onclick=load;
+load();
+</script>
+</body>
+</html>

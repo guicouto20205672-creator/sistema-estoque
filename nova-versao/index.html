@@ -189,14 +189,26 @@ function toggleReceived(){const m=$('#posPayment')?.value||payMethod;const b=$('
 function calcChange(){const val=Number($('#posReceived')?.value||0)-cartTotal();const el=$('#changeText');if(el)el.textContent=val>=0?'Troco: '+money(val):'Faltam: '+money(Math.abs(val))}
 function finishSale(){
  if(!cart.length){toast('Adicione pelo menos um produto.');return}
- const payment=(saleType==='fiado'?'Fiado':payMethod),customerId=$('#posCustomer')?.value||currentCustomer;
- if((payment==='Fiado'||saleType==='parcelado')&&!customerId){toast('Selecione um cliente para registrar o fiado.');return}
- for(const x of cart){const p=getProduct(x.productId);if(!p||p.qty<x.qty){toast('Estoque insuficiente para '+x.name);return}}
+ const customerId=$('#posCustomer')?.value||currentCustomer;
+ const isCreditSale=saleType==='fiado'||saleType==='parcelado'||payMethod==='Fiado';
+ const payment=isCreditSale?'Fiado':payMethod;
+ if(isCreditSale&&!customerId){toast('Selecione um cliente para registrar o fiado.');return}
+ for(const x of cart){const p=getProduct(x.productId);if(!p||Number(p.qty)<Number(x.qty)){toast('Estoque insuficiente para '+x.name);return}}
  const subtotal=cartSubtotal(),discount=Math.min(Math.max(0,Number(pdvDiscount)||0),subtotal),total=Math.max(0,subtotal-discount),received=Number($('#posReceived')?.value||0);
- if(saleType==='avista'&&payment==='Dinheiro'&&received>0&&received<total){toast('O valor recebido é menor que o total.');return}
- const customer=getCustomer(customerId),sale={id:uid(),number:'V'+String(state.sales.length+1).padStart(5,'0'),date:today(),time:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),customerId:customerId||'',customerName:customer?.name||'Consumidor',items:cart.map(x=>({...x})),subtotal,discount,total,costTotal:cart.reduce((a,x)=>a+x.cost*x.qty,0),payment:(payment==='Fiado'||saleType==='parcelado')?'Fiado':payment,saleType,paid:(payment==='Fiado'||saleType==='parcelado')?0:total,received:payment==='Dinheiro'?(received||total):total,change:payment==='Dinheiro'&&received>total?received-total:0,seller:$('#posSeller')?.value||'Vendedor padrão',notes:$('#pdvNotes')?.value||''};
- cart.forEach(x=>{const p=getProduct(x.productId);p.qty-=x.qty;p.updatedAt=new Date().toISOString()});
- state.sales.push(sale);save();cart=[];pdvDiscount=0;currentCustomer='';toast('Venda '+sale.number+' registrada com sucesso!');setPage('sales');
+ if(!isCreditSale&&payment==='Dinheiro'&&received>0&&received<total){toast('O valor recebido é menor que o total.');return}
+ const customer=getCustomer(customerId),sale={id:uid(),number:'V'+String(state.sales.length+1).padStart(5,'0'),date:today(),time:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),customerId:customerId||'',customerName:customer?.name||'Consumidor',items:cart.map(x=>({...x})),subtotal,discount,total,costTotal:cart.reduce((a,x)=>a+Number(x.cost||0)*Number(x.qty||0),0),payment,saleType:isCreditSale?'fiado':'avista',paid:isCreditSale?0:total,received:!isCreditSale&&payment==='Dinheiro'?(received||total):(!isCreditSale?total:0),change:!isCreditSale&&payment==='Dinheiro'&&received>total?received-total:0,seller:$('#posSeller')?.value||'Vendedor padrão',notes:$('#pdvNotes')?.value||''};
+ const previousQty=cart.map(x=>({id:x.productId,qty:Number(getProduct(x.productId).qty)}));
+ try{
+  cart.forEach(x=>{const p=getProduct(x.productId);p.qty=Number(p.qty)-Number(x.qty);p.updatedAt=new Date().toISOString()});
+  state.sales.push(sale);
+  save();
+ }catch(e){
+  state.sales=state.sales.filter(s=>s.id!==sale.id);
+  previousQty.forEach(v=>{const p=getProduct(v.id);if(p)p.qty=v.qty});
+  try{save()}catch(_){}
+  toast('Não foi possível salvar a venda/estoque neste navegador. Faça backup e tente novamente.');return
+ }
+ cart=[];pdvDiscount=0;currentCustomer='';saleType='avista';payMethod='Dinheiro';toast('Venda '+sale.number+' registrada; estoque atualizado e '+(isCreditSale?'fiado lançado em a receber.':'pagamento registrado.'));setPage('sales');
 }
 function salesPage(){
  const q=(window.salesSearch||'').toLowerCase(),list=[...state.sales].reverse().filter(s=>(s.number+' '+s.customerName+' '+s.payment).toLowerCase().includes(q));

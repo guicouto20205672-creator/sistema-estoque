@@ -214,7 +214,7 @@ function financePage(){
 }
 function receivablesPage(){
  const sales=state.sales.filter(s=>isFiadoSale(s)&&Number(s.total||0)>Number(s.paid||0)),balance=sales.reduce((a,s)=>a+Number(s.total||0)-Number(s.paid||0),0);
- const rows=sales.map(s=>`<tr><td>${esc(s.number)}</td><td>${dateBR(s.date)}</td><td>${esc(s.customerName)}</td><td>${money(s.total)}</td><td>${money(s.paid)}</td><td><strong class="redtext">${money(s.total-s.paid)}</strong></td><td><button onclick="receivePayment('${s.id}')" class="small">Registrar pagamento</button></td></tr>`).join('');
+ const rows=sales.map(s=>{const paid=Number(s.paid||0),total=Number(s.total||0);return `<tr><td>${esc(s.number)}</td><td>${dateBR(s.date)}</td><td>${esc(s.customerName)}</td><td>${money(total)}</td><td>${money(paid)}</td><td><strong class="redtext">${money(Math.max(0,total-paid))}</strong></td><td><button onclick="receivePayment('${s.id}')" class="small">Registrar pagamento</button></td></tr>`}).join('');
  return shell('Fiado a receber','Acompanhe as vendas a prazo e registre pagamentos parciais ou totais.')
  +`<div class="grid stats">${cardStat('Saldo total a receber',money(balance),'Soma de todas as vendas fiadas abertas','◉')}${cardStat('Vendas em aberto',sales.length,'Vendas com saldo pendente','▤')}${cardStat('Clientes com saldo',new Set(sales.map(s=>s.customerId)).size,'Clientes com dívida ativa','♙')}${cardStat('Recebido neste controle',money(state.receipts.reduce((a,r)=>a+r.amount,0)),'Pagamentos de fiado registrados','✓')}</div><div class="card">${table(['Venda','Data','Cliente','Valor original','Já pago','Saldo','Ação'],rows,'Nenhum valor fiado em aberto.')}</div>`;
 }

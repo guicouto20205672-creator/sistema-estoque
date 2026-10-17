@@ -192,8 +192,8 @@ function render(){
  $('#topTitle').textContent=pageTitle(currentPage);$('#today').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
  const content=$('#content');
  const renderers={dashboard:dashboardPage,pdv:pdvPage,comandas:comandasPage,products:productsPage,customers:customersPage,sales:salesPage,finance:financePage,receivables:receivablesPage,expenses:expensesPage,suppliers:suppliersPage,backup:backupPage};
- content.innerHTML=(renderers[currentPage]||dashboardPage)();
- if(currentPage==='pdv'){renderCart();setTimeout(()=>{const input=$('#pdvInput');if(input)input.focus()},60)}
+ try{content.innerHTML=(renderers[currentPage]||dashboardPage)()}catch(err){console.error('Erro ao renderizar a tela:',err);content.innerHTML='<section class="card"><h2>Não foi possível carregar esta tela</h2><p>Atualize a página. Se continuar, envie uma foto desta mensagem para o suporte.</p><button onclick="setPage(\'dashboard\')">Voltar ao painel</button></section>'}
+ if(currentPage==='pdv'){try{renderCart();setTimeout(()=>{const input=$('#pdvInput');if(input)input.focus()},60)}catch(err){console.error(err)}}
 }
 
 function comandasPage(){

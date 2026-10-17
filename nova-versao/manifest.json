@@ -1,0 +1,20 @@
+{
+  "id": "./index.html",
+  "name": "Distribuidora Rezende",
+  "short_name": "Rezende",
+  "description": "Estoque, caixa, vendas e comandas",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0b0d",
+  "theme_color": "#0b0b0d",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

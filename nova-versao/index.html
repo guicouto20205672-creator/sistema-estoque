@@ -98,7 +98,56 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const defaultState={products:[],customers:[],sales:[],expenses:[],suppliers:[],receipts:[],comandas:[],cash:{date:today(),opening:0,closed:false,closing:null},settings:{businessName:'Distribuidora Rezende',lowStock:5}};
 let state; try{state=JSON.parse(localStorage.getItem('distribuidoraProV2'))||structuredClone(defaultState)}catch(e){state=JSON.parse(JSON.stringify(defaultState))}
 state.comandas ||= []; let currentPage='dashboard',cart=[],currentCustomer='',payMethod='Dinheiro',pdvDiscount=0;
-function save(){localStorage.setItem('distribuidoraProV2',JSON.stringify(state));}
+function save(){localStorage.setItem('distribuidoraProV2',JSON.stringify(state));scheduleCloudSync()}
+let cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncAgain=false;
+const cloudSyncMetaKey='rz_cloud_sync_meta';
+function cloudStateSnapshot(){return JSON.stringify(state)}
+function getCloudSyncMeta(){try{return JSON.parse(localStorage.getItem(cloudSyncMetaKey)||'null')}catch(e){return null}}
+function setCloudSyncMeta(remoteUpdatedAt){localStorage.setItem(cloudSyncMetaKey,JSON.stringify({remoteUpdatedAt:remoteUpdatedAt||null,localSnapshot:cloudStateSnapshot(),syncedAt:new Date().toISOString()}))}
+function scheduleCloudSync(){if(!navigator.onLine||!cloudConfig().url||!cloudConfig().key)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>automaticCloudSync('push'),1800)}
+async function automaticCloudSync(mode='check'){
+ if(cloudSyncBusy){cloudSyncAgain=true;return}
+ if(!navigator.onLine)return;
+ let c,user;
+ try{({c,user}=await requireCloudUser())}catch(e){updateCloudStatus();return}
+ cloudSyncBusy=true;
+ try{
+  const q=await c.from('rezende_state').select('payload,updated_at').eq('user_id',user.id).maybeSingle();
+  if(q.error)throw q.error;
+  const remote=q.data,meta=getCloudSyncMeta(),localNow=cloudStateSnapshot();
+  if(!remote){
+   if(meta){setCloudSyncMeta(null)}
+   const put=await c.from('rezende_state').upsert({user_id:user.id,payload:state,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+   if(put.error)throw put.error;
+   setCloudSyncMeta(new Date().toISOString());updateCloudStatus();return;
+  }
+  if(!meta){
+   const el=$('#cloudStatus');if(el)el.textContent='● Configurar sincronização inicial';
+   return;
+  }
+  const localUnchanged=meta.localSnapshot===localNow;
+  const remoteChanged=!!(remote.updated_at&&meta.remoteUpdatedAt&&new Date(remote.updated_at)>new Date(meta.remoteUpdatedAt));
+  if(mode==='pull'||(remoteChanged&&localUnchanged)){
+   const p=remote.payload;
+   if(!p||!Array.isArray(p.products)||!Array.isArray(p.sales))throw new Error('Dados remotos inválidos; nada foi alterado.');
+   state={...structuredClone(defaultState),...p};localStorage.setItem('distribuidoraProV2',JSON.stringify(state));
+   setCloudSyncMeta(remote.updated_at);render();updateCloudStatus();return;
+  }
+  if(remoteChanged&&!localUnchanged){
+   const el=$('#cloudStatus');if(el){el.textContent='● Conflito: sincronização pausada';el.style.color='var(--yellow)'}
+   toast('Há alterações nos dois aparelhos. Sincronização pausada para proteger seus dados; faça backup antes de resolver.');
+   return;
+  }
+  if(mode==='push'||!remoteChanged){
+   const stamp=new Date().toISOString();
+   const put=await c.from('rezende_state').upsert({user_id:user.id,payload:state,updated_at:stamp},{onConflict:'user_id'});
+   if(put.error)throw put.error;
+   setCloudSyncMeta(stamp);updateCloudStatus();
+  }
+ }catch(e){const el=$('#cloudStatus');if(el)el.textContent='● Sync pendente';console.warn('Sincronização automática:',e.message)}
+ finally{cloudSyncBusy=false;if(cloudSyncAgain){cloudSyncAgain=false;scheduleCloudSync()}}
+}
+
 let cloudClient=null;
 function cloudConfig(){return {url:localStorage.getItem('rz_cloud_url')||'',key:localStorage.getItem('rz_cloud_key')||''}}
 function initCloudClient(){const c=cloudConfig();if(!c.url||!c.key){cloudClient=null;return null}if(!window.supabase?.createClient){throw new Error('Biblioteca da nuvem não carregou. Confira a conexão com a internet.')}cloudClient=window.supabase.createClient(c.url,c.key);return cloudClient}
@@ -106,17 +155,17 @@ function openCloudPanel(){const c=cloudConfig();openModal('Sincronização entre
 function saveCloudConfig(){const url=$('#cloudUrl').value.trim().replace(/\/$/,''),key=$('#cloudKey').value.trim();if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)||!key){toast('Informe a URL do projeto e a chave pública.');return}localStorage.setItem('rz_cloud_url',url);localStorage.setItem('rz_cloud_key',key);try{initCloudClient();toast('Configuração salva neste navegador.');updateCloudStatus()}catch(e){toast(e.message)}}
 function cloudCredentials(){const email=$('#cloudEmail')?.value.trim(),password=$('#cloudPassword')?.value;if(!email||!password)throw new Error('Informe e-mail e senha.');if(password.length<8)throw new Error('A senha precisa ter pelo menos 8 caracteres.');return {email,password}}
 async function cloudSignUp(){try{const c=initCloudClient();if(!c)throw new Error('Salve primeiro a URL e a chave pública.');const {email,password}=cloudCredentials(),r=await c.auth.signUp({email,password});if(r.error)throw r.error;toast(r.data.session?'Conta criada e conectada.':'Conta criada. Confira seu e-mail se a confirmação estiver ativada.');updateCloudStatus()}catch(e){toast('Erro: '+e.message)}}
-async function cloudSignIn(){try{const c=initCloudClient();if(!c)throw new Error('Salve primeiro a URL e a chave pública.');const {email,password}=cloudCredentials(),r=await c.auth.signInWithPassword({email,password});if(r.error)throw r.error;toast('Login realizado.');updateCloudStatus()}catch(e){toast('Erro: '+e.message)}}
+async function cloudSignIn(){try{const c=initCloudClient();if(!c)throw new Error('Salve primeiro a URL e a chave pública.');const {email,password}=cloudCredentials(),r=await c.auth.signInWithPassword({email,password});if(r.error)throw r.error;toast('Login realizado.');updateCloudStatus();setTimeout(()=>automaticCloudSync('check'),400)}catch(e){toast('Erro: '+e.message)}}
 async function cloudSignOut(){try{const c=initCloudClient();if(!c)throw new Error('Configure a nuvem primeiro.');const r=await c.auth.signOut();if(r.error)throw r.error;toast('Você saiu da conta.');updateCloudStatus()}catch(e){toast('Erro: '+e.message)}}
 async function requireCloudUser(){const c=initCloudClient();if(!c)throw new Error('Configure e salve a URL e a chave pública.');const r=await c.auth.getUser();if(r.error||!r.data.user)throw new Error('Entre na conta antes de sincronizar.');return {c,user:r.data.user}}
 async function cloudPush(){try{const {c,user}=await requireCloudUser();if(!confirm('Enviar os dados deste aparelho para a nuvem? Isso substituirá a cópia da nuvem. Faça backup antes de continuar.'))return;const r=await c.from('rezende_state').upsert({user_id:user.id,payload:state,updated_at:new Date().toISOString()},{onConflict:'user_id'});if(r.error)throw r.error;toast('Dados enviados para a nuvem.');updateCloudStatus()}catch(e){toast('Erro ao enviar: '+e.message)}}
 async function cloudPull(){try{const {c,user}=await requireCloudUser();if(!confirm('Baixar os dados da nuvem e substituir os dados deste aparelho? Faça backup antes de continuar.'))return;const r=await c.from('rezende_state').select('payload').eq('user_id',user.id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('Ainda não há dados na nuvem. Primeiro use “Enviar dados deste aparelho” no aparelho que contém os dados corretos.');const p=r.data.payload;if(!p||!Array.isArray(p.products)||!Array.isArray(p.sales))throw new Error('Os dados da nuvem não têm o formato esperado.');state={...structuredClone(defaultState),...p};save();toast('Dados baixados. Atualizando o sistema…');setTimeout(()=>location.reload(),700)}catch(e){toast('Erro ao baixar: '+e.message)}}
 async function updateCloudStatus(){const el=$('#cloudStatus');if(!el)return;try{const c=initCloudClient();if(!c){el.textContent='● Nuvem não configurada';return}const r=await c.auth.getUser();el.textContent=r.data?.user?'● Conta conectada':'● Entre na nuvem'}catch(e){el.textContent='● Dados locais'}}
-window.addEventListener('load',updateCloudStatus);
+window.addEventListener('load',()=>{updateCloudStatus();setTimeout(()=>automaticCloudSync('check'),1200)});
 
 let installPromptEvent=null;
 function updateNetworkStatus(){const el=$('#networkStatus');if(!el)return;el.textContent=navigator.onLine?'● Online':'● Offline';el.style.color=navigator.onLine?'var(--green)':'var(--yellow)';}
-window.addEventListener('online',()=>{updateNetworkStatus();toast('Internet voltou. Seus dados locais continuam salvos; abra Sincronização para atualizar a nuvem.')});
+window.addEventListener('online',()=>{updateNetworkStatus();toast('Internet voltou. Tentando sincronizar automaticamente…');automaticCloudSync('check')});
 window.addEventListener('offline',()=>{updateNetworkStatus();toast('Você está offline. As alterações continuam sendo salvas neste aparelho.')});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPromptEvent=e;const b=$('#installAppBtn');if(b)b.style.display='inline-block'});
 window.addEventListener('appinstalled',()=>{installPromptEvent=null;const b=$('#installAppBtn');if(b)b.style.display='none';toast('Aplicativo instalado!')});

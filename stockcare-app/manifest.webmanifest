@@ -1,0 +1,19 @@
+{
+  "name": "StockCare Pro - Estoque da Assistência",
+  "short_name": "StockCare",
+  "description": "Controle de estoque para assistência técnica",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f6fb",
+  "theme_color": "#101827",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

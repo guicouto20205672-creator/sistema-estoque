@@ -87,7 +87,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const dateBR=d=>d?new Date(d+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const defaultState={products:[],customers:[],sales:[],expenses:[],suppliers:[],receipts:[],comandas:[],cash:{date:today(),opening:0,closed:false,closing:null},settings:{businessName:'Distribuidora Rezende',lowStock:5}};
@@ -163,7 +163,7 @@ function dashboardPage(){
  const todays=todaySales(),total=salesTotal(todays),cash=todays.filter(s=>s.payment==='Dinheiro').reduce((a,s)=>a+s.total,0),pix=todays.filter(s=>s.payment==='Pix').reduce((a,s)=>a+s.total,0);
  const low=state.products.filter(p=>Number(p.qty)<=Number(p.minQty??state.settings.lowStock));
  const rows=[...todays].slice(-6).reverse().map(s=>`<tr><td>${esc(s.number)}</td><td>${dateBR(s.date)}</td><td>${esc(s.customerName||'Consumidor')}</td><td>${esc(s.payment)}</td><td>${money(s.total)}</td><td><span class="badge good">Concluída</span></td></tr>`).join('');
- const last7=Array.from({length:7},(_,i)=>{let d=new Date();d.setDate(d.getDate()-(6-i));let ds=d.toISOString().slice(0,10);return {d:ds,total:salesTotal(state.sales.filter(s=>s.date===ds))}});
+ const last7=Array.from({length:7},(_,i)=>{let d=new Date();d.setDate(d.getDate()-(6-i));let ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return {d:ds,total:salesTotal(state.sales.filter(s=>s.date===ds))}});
  const max=Math.max(1,...last7.map(x=>x.total));
  return shell('Visão geral','Acompanhe os números da distribuidora em um só lugar.',`<button onclick="setPage('pdv')">＋ Nova venda</button>`)
  +`<div class="grid stats">${cardStat('Vendas de hoje',money(total),`${todays.length} venda(s) registrada(s)`,'↗')}${cardStat('Lucro bruto estimado',money(grossProfit(todays)),'Vendas menos custo das mercadorias','◆')}${cardStat('Dinheiro recebido',money(cash),'Pagamentos em dinheiro','R$')}${cardStat('Recebido via Pix',money(pix),'Pagamentos em Pix','◈')}</div>

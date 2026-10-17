@@ -52,6 +52,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-
     <nav class="nav">
       <button class="active" data-page="dashboard"><span class="ico">▦</span>Painel geral</button>
       <button data-page="pdv"><span class="ico">▣</span>Caixa / PDV</button>
+      <button data-page="comandas"><span class="ico">☷</span>Comandas</button>
       <button data-page="products"><span class="ico">▤</span>Produtos e estoque</button>
       <button data-page="customers"><span class="ico">♙</span>Clientes</button>
       <button data-page="sales"><span class="ico">◷</span>Histórico de vendas</button>
@@ -89,9 +90,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const today=()=>new Date().toISOString().slice(0,10);
 const dateBR=d=>d?new Date(d+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const defaultState={products:[],customers:[],sales:[],expenses:[],suppliers:[],receipts:[],cash:{date:today(),opening:0,closed:false,closing:null},settings:{businessName:'Distribuidora Rezende',lowStock:5}};
+const defaultState={products:[],customers:[],sales:[],expenses:[],suppliers:[],receipts:[],comandas:[],cash:{date:today(),opening:0,closed:false,closing:null},settings:{businessName:'Distribuidora Rezende',lowStock:5}};
 let state; try{state=JSON.parse(localStorage.getItem('distribuidoraProV2'))||structuredClone(defaultState)}catch(e){state=JSON.parse(JSON.stringify(defaultState))}
-let currentPage='dashboard',cart=[],currentCustomer='',payMethod='Dinheiro',pdvDiscount=0;
+state.comandas ||= []; let currentPage='dashboard',cart=[],currentCustomer='',payMethod='Dinheiro',pdvDiscount=0;
 function save(){localStorage.setItem('distribuidoraProV2',JSON.stringify(state));}
 let cloudClient=null;
 function cloudConfig(){return {url:localStorage.getItem('rz_cloud_url')||'',key:localStorage.getItem('rz_cloud_key')||''}}
@@ -109,7 +110,7 @@ async function updateCloudStatus(){const el=$('#cloudStatus');if(!el)return;try{
 window.addEventListener('load',updateCloudStatus);
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function setPage(page){currentPage=page;$$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('#sidebar').classList.remove('open');render();}
-function pageTitle(p){return ({dashboard:'Painel geral',pdv:'Caixa / PDV',products:'Produtos e estoque',customers:'Clientes',sales:'Histórico de vendas',finance:'Financeiro',receivables:'Fiado a receber',expenses:'Despesas',suppliers:'Fornecedores',backup:'Backup e dados'})[p]||'Distribuidora Pro'}
+function pageTitle(p){return ({dashboard:'Painel geral',pdv:'Caixa / PDV',products:'Produtos e estoque',customers:'Clientes',sales:'Histórico de vendas',comandas:'Comandas de consumo',finance:'Financeiro',receivables:'Fiado a receber',expenses:'Despesas',suppliers:'Fornecedores',backup:'Backup e dados'})[p]||'Distribuidora Pro'}
 function shell(title,sub,actions=''){return `<div class="pagehead"><div><h1>${title}</h1><p>${sub}</p></div><div class="actions">${actions}</div></div>`}
 function cardStat(label,value,foot,icon='◆'){return `<div class="card"><div class="statlabel"><span>${label}</span><span class="staticon">${icon}</span></div><div class="statvalue">${value}</div><div class="statfoot">${foot}</div></div>`}
 function table(headers,rows,empty='Nenhum registro encontrado.'){return `<div class="tablewrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${headers.length}" class="empty">${empty}</td></tr>`}</tbody></table></div>`}
@@ -125,10 +126,39 @@ function getProduct(id){return state.products.find(p=>p.id===id)}
 function render(){
  $('#topTitle').textContent=pageTitle(currentPage);$('#today').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
  const content=$('#content');
- const renderers={dashboard:dashboardPage,pdv:pdvPage,products:productsPage,customers:customersPage,sales:salesPage,finance:financePage,receivables:receivablesPage,expenses:expensesPage,suppliers:suppliersPage,backup:backupPage};
+ const renderers={dashboard:dashboardPage,pdv:pdvPage,comandas:comandasPage,products:productsPage,customers:customersPage,sales:salesPage,finance:financePage,receivables:receivablesPage,expenses:expensesPage,suppliers:suppliersPage,backup:backupPage};
  content.innerHTML=(renderers[currentPage]||dashboardPage)();
  if(currentPage==='pdv')renderCart();
 }
+
+function comandasPage(){
+ const open=state.comandas.filter(c=>c.status==='aberta');
+ const rows=open.map(c=>`<tr><td><strong>${esc(c.customerName)}</strong></td><td>${c.items.reduce((a,x)=>a+Number(x.qty),0)}</td><td>${money(c.items.reduce((a,x)=>a+Number(x.qty)*Number(x.price),0))}</td><td><button class="small" onclick="viewComanda('${c.id}')">Ver / adicionar</button> <button class="small" onclick="closeComanda('${c.id}')">Fechar conta</button> <button class="small danger" onclick="cancelComanda('${c.id}')">Cancelar</button></td></tr>`).join('');
+ return shell('Comandas de consumo','Anote o nome do cliente e o que ele consumir. O estoque é atualizado ao fechar a conta.',`<button onclick="newComanda()">＋ Nova comanda</button>`)+
+ `<div class="card"><h3 class="sectiontitle">Comandas em aberto</h3>${table(['Cliente','Itens','Total','Ações'],rows,'Nenhuma comanda aberta.')}</div>`;
+}
+function newComanda(){
+ openModal('Nova comanda',`<form onsubmit="createComanda(event)"><div class="field"><label>Nome do cliente *</label><input name="customer" required maxlength="100" placeholder="Nome do cliente"></div><div class="formactions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button>Abrir comanda</button></div></form>`);
+}
+function createComanda(e){e.preventDefault();const name=new FormData(e.target).get('customer').trim();if(!name)return;const c={id:uid(),customerName:name,items:[],status:'aberta',createdAt:new Date().toISOString(),date:today()};state.comandas.push(c);save();closeModal();render();viewComanda(c.id)}
+function viewComanda(id){
+ const c=state.comandas.find(x=>x.id===id&&x.status==='aberta');if(!c)return;
+ const rows=c.items.map((x,i)=>`<tr><td>${esc(x.name)}</td><td>${x.qty}</td><td>${money(x.price)}</td><td>${money(x.qty*x.price)}</td><td><button class="small danger" onclick="removeComandaItem('${c.id}',${i})">Remover</button></td></tr>`).join('');
+ const options=state.products.filter(p=>Number(p.qty)>0).map(p=>`<option value="${p.id}">${esc(p.name)} — ${money(p.price)} (estoque: ${p.qty})</option>`).join('');
+ openModal('Comanda — '+esc(c.customerName),`<p class="muted">Adicione cada bebida consumida. O estoque só será baixado quando a conta for fechada.</p><form onsubmit="addComandaItem(event,'${c.id}')"><div class="field"><label>Produto</label><select name="product" required>${options}</select></div><div class="field"><label>Quantidade</label><input name="qty" type="number" min="1" step="1" value="1" required></div><div class="formactions"><button>Adicionar consumo</button></div></form><h3 class="sectiontitle" style="margin-top:20px">Consumo registrado</h3>${table(['Produto','Qtd.','Unitário','Subtotal',''],rows,'Ainda não há itens nesta comanda.')}<div class="totalrow big"><span>Total</span><span>${money(c.items.reduce((a,x)=>a+Number(x.qty)*Number(x.price),0))}</span></div><p class="note">Feche a conta quando o cliente for pagar.</p><div class="formactions"><button class="secondary" onclick="closeModal()">Voltar</button><button onclick="closeComanda('${c.id}')">Fechar conta</button></div>`);
+}
+function addComandaItem(e,id){e.preventDefault();const f=new FormData(e.target),c=state.comandas.find(x=>x.id===id&&x.status==='aberta'),p=getProduct(f.get('product')),qty=Math.floor(Number(f.get('qty')));if(!c||!p||qty<1)return;if(qty>Number(p.qty)){toast('Estoque insuficiente.');return}const item=c.items.find(x=>x.productId===p.id);if(item)item.qty+=qty;else c.items.push({productId:p.id,name:p.name,qty,price:Number(p.price),cost:Number(p.cost||0)});save();viewComanda(id)}
+function removeComandaItem(id,index){const c=state.comandas.find(x=>x.id===id&&x.status==='aberta');if(!c)return;c.items.splice(index,1);save();viewComanda(id)}
+function closeComanda(id){
+ const c=state.comandas.find(x=>x.id===id&&x.status==='aberta');if(!c)return;if(!c.items.length){toast('Adicione pelo menos um produto antes de fechar.');return}
+ for(const x of c.items){const p=getProduct(x.productId);if(!p||Number(p.qty)<Number(x.qty)){toast('Estoque insuficiente para '+x.name+'. Atualize a comanda.');return}}
+ const total=c.items.reduce((a,x)=>a+Number(x.qty)*Number(x.price),0);
+ openModal('Fechar conta — '+esc(c.customerName),`<p>Total da comanda: <strong>${money(total)}</strong></p><form onsubmit="finishComanda(event,'${id}')"><div class="field"><label>Forma de pagamento</label><select name="payment"><option>Dinheiro</option><option>Pix</option><option>Cartão de débito</option><option>Cartão de crédito</option></select></div><div class="field"><label>Valor recebido (R$), se for dinheiro</label><input name="received" type="number" min="0" step=".01" value="${total}"></div><div class="formactions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button>Confirmar pagamento</button></div></form>`);
+}
+function finishComanda(e,id){e.preventDefault();const c=state.comandas.find(x=>x.id===id&&x.status==='aberta');if(!c)return;const f=new FormData(e.target),payment=f.get('payment'),total=c.items.reduce((a,x)=>a+Number(x.qty)*Number(x.price),0),received=Number(f.get('received')||0);if(payment==='Dinheiro'&&received<total){toast('O valor recebido é menor que o total.');return}for(const x of c.items){const p=getProduct(x.productId);if(!p||Number(p.qty)<Number(x.qty)){toast('Estoque insuficiente para '+x.name+'.');return}}
+ const sale={id:uid(),number:'V'+String(state.sales.length+1).padStart(5,'0'),date:today(),time:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),customerId:'',customerName:c.customerName,items:c.items.map(x=>({...x})),subtotal:total,discount:0,total,costTotal:c.items.reduce((a,x)=>a+Number(x.cost||0)*Number(x.qty||0),0),payment,saleType:'avista',paid:total,received:payment==='Dinheiro'?received:total,change:payment==='Dinheiro'?received-total:0,seller:'Comanda',notes:'Comanda de consumo'};
+ const before=c.items.map(x=>({id:x.productId,qty:Number(getProduct(x.productId).qty)}));try{c.items.forEach(x=>{const p=getProduct(x.productId);p.qty=Number(p.qty)-Number(x.qty);p.updatedAt=new Date().toISOString()});state.sales.push(sale);c.status='fechada';c.closedAt=new Date().toISOString();c.saleId=sale.id;save()}catch(err){state.sales=state.sales.filter(s=>s.id!==sale.id);before.forEach(x=>{const p=getProduct(x.id);if(p)p.qty=x.qty});c.status='aberta';try{save()}catch(_){}toast('Não foi possível salvar a comanda.');return}closeModal();toast('Conta fechada, venda registrada e estoque atualizado.');setPage('comandas')}
+function cancelComanda(id){const c=state.comandas.find(x=>x.id===id&&x.status==='aberta');if(!c)return;if(!confirm('Cancelar esta comanda? Nenhuma venda será registrada.'))return;state.comandas=state.comandas.filter(x=>x.id!==id);save();render();toast('Comanda cancelada.')}
 function dashboardPage(){
  const todays=todaySales(),total=salesTotal(todays),cash=todays.filter(s=>s.payment==='Dinheiro').reduce((a,s)=>a+s.total,0),pix=todays.filter(s=>s.payment==='Pix').reduce((a,s)=>a+s.total,0);
  const low=state.products.filter(p=>Number(p.qty)<=Number(p.minQty??state.settings.lowStock));

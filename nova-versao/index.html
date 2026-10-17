@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0b0d">
+<meta name="description" content="Sistema de estoque, caixa, vendas e comandas da Distribuidora Rezende.">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon.svg">
 <title>Distribuidora Rezende | Sistema Integrado</title>
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
@@ -76,7 +81,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-
 <main class="main">
   <header class="topbar">
     <div class="topheading"><button class="mobilemenu" id="mobilemenu">☰</button><div><h2 id="topTitle">Painel geral</h2><p id="today"></p></div></div>
-    <div class="topright"><span class="status" id="cloudStatus">● Dados locais</span><button class="secondary" onclick="openCloudPanel()">☁ Sincronização</button><button onclick="openSaleHelp()">Ajuda do PDV</button></div>
+    <div class="topright"><span class="status" id="cloudStatus">● Dados locais</span><span class="status" id="networkStatus">● Online</span><button class="secondary" id="installAppBtn" style="display:none" onclick="installApp()">＋ Instalar app</button><button class="secondary" onclick="openCloudPanel()">☁ Sincronização</button><button onclick="openSaleHelp()">Ajuda do PDV</button></div>
   </header>
   <div class="content" id="content"></div>
 </main>
@@ -108,6 +113,17 @@ async function cloudPush(){try{const {c,user}=await requireCloudUser();if(!confi
 async function cloudPull(){try{const {c,user}=await requireCloudUser();if(!confirm('Baixar os dados da nuvem e substituir os dados deste aparelho? Faça backup antes de continuar.'))return;const r=await c.from('rezende_state').select('payload').eq('user_id',user.id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('Ainda não há dados na nuvem. Primeiro use “Enviar dados deste aparelho” no aparelho que contém os dados corretos.');const p=r.data.payload;if(!p||!Array.isArray(p.products)||!Array.isArray(p.sales))throw new Error('Os dados da nuvem não têm o formato esperado.');state={...structuredClone(defaultState),...p};save();toast('Dados baixados. Atualizando o sistema…');setTimeout(()=>location.reload(),700)}catch(e){toast('Erro ao baixar: '+e.message)}}
 async function updateCloudStatus(){const el=$('#cloudStatus');if(!el)return;try{const c=initCloudClient();if(!c){el.textContent='● Nuvem não configurada';return}const r=await c.auth.getUser();el.textContent=r.data?.user?'● Conta conectada':'● Entre na nuvem'}catch(e){el.textContent='● Dados locais'}}
 window.addEventListener('load',updateCloudStatus);
+
+let installPromptEvent=null;
+function updateNetworkStatus(){const el=$('#networkStatus');if(!el)return;el.textContent=navigator.onLine?'● Online':'● Offline';el.style.color=navigator.onLine?'var(--green)':'var(--yellow)';}
+window.addEventListener('online',()=>{updateNetworkStatus();toast('Internet voltou. Seus dados locais continuam salvos; abra Sincronização para atualizar a nuvem.')});
+window.addEventListener('offline',()=>{updateNetworkStatus();toast('Você está offline. As alterações continuam sendo salvas neste aparelho.')});
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPromptEvent=e;const b=$('#installAppBtn');if(b)b.style.display='inline-block'});
+window.addEventListener('appinstalled',()=>{installPromptEvent=null;const b=$('#installAppBtn');if(b)b.style.display='none';toast('Aplicativo instalado!')});
+async function installApp(){if(installPromptEvent){installPromptEvent.prompt();await installPromptEvent.userChoice;installPromptEvent=null;const b=$('#installAppBtn');if(b)b.style.display='none';return}openModal('Instalar Distribuidora Rezende','<p>Se estiver no Android, abra o menu do navegador e escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</p><p>No Windows, abra este sistema no Chrome ou Edge e use o ícone de instalação na barra de endereço ou o menu <strong>Instalar página como aplicativo</strong>.</p><p class="note">A opção pode variar conforme navegador e dispositivo. A primeira instalação precisa de internet.</p><div class="formactions"><button onclick="closeModal()">Entendi</button></div>')}
+updateNetworkStatus();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function setPage(page){currentPage=page;$$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('#sidebar').classList.remove('open');render();}
 function pageTitle(p){return ({dashboard:'Painel geral',pdv:'Caixa / PDV',products:'Produtos e estoque',customers:'Clientes',sales:'Histórico de vendas',comandas:'Comandas de consumo',finance:'Financeiro',receivables:'Fiado a receber',expenses:'Despesas',suppliers:'Fornecedores',backup:'Backup e dados'})[p]||'Distribuidora Pro'}

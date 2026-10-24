@@ -329,7 +329,7 @@ function financePage(){
 function receivablesPage(){
  const openSales=state.sales.filter(s=>s.status!=='cancelada'&&isFiadoSale(s)&&Number(s.total||0)>Number(s.paid||0));
  const groups=new Map();
- openSales.forEach(s=>{const key=String(s.customerId||'').trim()?('id:'+s.customerId):('name:'+String(s.customerName||'').trim().toLocaleLowerCase('pt-BR'));if(!groups.has(key))groups.set(key,{key,customerId:s.customerId||'',customerName:s.customerName||'Cliente não identificado',sales:[],balance:0,paid:0,total:0});const g=groups.get(key);g.sales.push(s);g.balance+=Math.max(0,Number(s.total||0)-Number(s.paid||0));g.paid+=Number(s.paid||0);g.total+=Number(s.total||0);});
+ openSales.forEach(s=>{const normalizedName=String(s.customerName||'Cliente não identificado').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');const key='name:'+normalizedName;if(!groups.has(key))groups.set(key,{key,customerId:s.customerId||'',customerName:s.customerName||'Cliente não identificado',sales:[],balance:0,paid:0,total:0});const g=groups.get(key);g.sales.push(s);g.balance+=Math.max(0,Number(s.total||0)-Number(s.paid||0));g.paid+=Number(s.paid||0);g.total+=Number(s.total||0);});
  const customers=[...groups.values()].sort((a,b)=>a.customerName.localeCompare(b.customerName,'pt-BR'));
  const rows=customers.map(g=>`<tr><td><strong>${esc(g.customerName)}</strong><div class="muted">${g.sales.length} venda(s) em aberto</div></td><td>${money(g.total)}</td><td>${money(g.paid)}</td><td><strong class="redtext">${money(g.balance)}</strong></td><td><button class="small" onclick="viewReceivableCustomer('${esc(g.key)}')">Ver vendas</button></td></tr>`).join('');
  const balance=customers.reduce((a,g)=>a+g.balance,0),paid=customers.reduce((a,g)=>a+g.paid,0);
@@ -338,7 +338,7 @@ function receivablesPage(){
 }
 function viewReceivableCustomer(key){
  const openSales=state.sales.filter(s=>s.status!=='cancelada'&&isFiadoSale(s)&&Number(s.total||0)>Number(s.paid||0));
- const matches=openSales.filter(s=>(String(s.customerId||'').trim()?('id:'+s.customerId):('name:'+String(s.customerName||'').trim().toLocaleLowerCase('pt-BR')) )===key);
+ const matches=openSales.filter(s=>'name:'+String(s.customerName||'Cliente não identificado').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR')===key);
  if(!matches.length){toast('Não há vendas pendentes para este cliente.');render();return}
  const name=matches[0].customerName||'Cliente não identificado';
  const rows=matches.map(s=>`<tr><td>${esc(s.number)}</td><td>${dateBR(s.date)}</td><td>${money(s.total)}</td><td>${money(s.paid||0)}</td><td><strong class="redtext">${money(Math.max(0,Number(s.total||0)-Number(s.paid||0)))}</strong></td><td><button class="small" onclick="receivePayment('${s.id}')">Receber</button></td></tr>`).join('');

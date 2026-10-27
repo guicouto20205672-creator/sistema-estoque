@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>Login | Distribuidora Rezende</title>
+<style>
+:root{color-scheme:dark;--red:#d71920;--red2:#a90f18;--white:#fff;--muted:#aaa;--panel:#171717;--line:#343434}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}body{min-height:100vh;background:#0b0b0c;color:var(--white);display:grid;place-items:center;padding:24px;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 15% 15%,#d719201c,transparent 35%),radial-gradient(ellipse at 85% 90%,#d7192018,transparent 32%),linear-gradient(135deg,#111 0%,#080808 65%,#171010 100%)}
+.shell{position:relative;width:min(100%,440px);padding:clamp(24px,5vw,42px);border:1px solid #383838;border-radius:24px;background:linear-gradient(145deg,#1b1b1bee,#101010f5);box-shadow:0 28px 90px #0009,0 0 0 1px #ffffff05;overflow:hidden}
+.shell:before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#8e0d15,var(--red),#ff5158,var(--red))}
+.brand{text-align:center;margin-bottom:32px}.crown{width:84px;height:70px;margin:0 auto 12px;display:block;filter:drop-shadow(0 5px 14px #d7192033)}.brand h1{font-size:clamp(24px,6vw,30px);line-height:1.05;letter-spacing:.1em;margin:0;font-weight:900}.brand h1 span{display:block;color:var(--red);margin-top:5px}.brand p{margin:13px 0 0;color:#bdbdbd;font-size:11px;letter-spacing:.23em;text-transform:uppercase}
+h2{font-size:19px;margin:0 0 6px}.intro{color:var(--muted);font-size:13px;margin:0 0 25px}
+.field{margin:0 0 17px}.field label{display:block;font-size:13px;font-weight:650;margin-bottom:8px;color:#ededed}.inputwrap{display:flex;align-items:center;gap:11px;background:#0d0d0e;border:1px solid #383838;border-radius:12px;padding:0 14px;transition:border-color .2s,box-shadow .2s}.inputwrap:focus-within{border-color:var(--red);box-shadow:0 0 0 3px #d719201c}.inputwrap svg{width:19px;height:19px;flex-shrink:0;color:#999}.inputwrap input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#fff;padding:15px 0;font-size:15px}.inputwrap input::placeholder{color:#777}.eye{border:0;background:transparent;color:#aaa;padding:8px;display:grid;place-items:center}.eye svg{width:19px}
+.forgot{display:flex;justify-content:flex-end;margin-top:-4px;margin-bottom:23px}.forgot a{font-size:12px;color:#ff656b;text-decoration:none}.forgot a:hover{text-decoration:underline}
+.submit{width:100%;border:0;border-radius:12px;padding:15px 18px;background:linear-gradient(135deg,#e32636,#b80f1d);color:white;font-size:14px;font-weight:800;letter-spacing:.08em;box-shadow:0 8px 24px #d719202c;cursor:pointer;transition:transform .15s,filter .15s}.submit:hover{filter:brightness(1.08);transform:translateY(-1px)}.submit:active{transform:translateY(0)}
+.notice{display:flex;justify-content:center;align-items:center;gap:8px;color:#929292;font-size:11px;margin-top:24px;text-align:center}.notice svg{width:15px;height:15px;color:var(--red)}.foot{text-align:center;color:#696969;font-size:10px;margin-top:24px;letter-spacing:.04em}
+@media(min-width:760px){body{padding:40px}.shell{width:440px}.brand{margin-bottom:36px}}
+@media(max-width:380px){body{padding:12px}.shell{padding:25px 20px;border-radius:18px}.brand h1{font-size:23px}.crown{width:72px;height:60px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="shell" aria-labelledby="brandTitle">
+  <header class="brand">
+    <svg class="crown" viewBox="0 0 120 92" role="img" aria-label="Símbolo de coroa da Distribuidora Rezende">
+      <defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0a1"/><stop offset=".45" stop-color="#e8b94b"/><stop offset="1" stop-color="#a56b14"/></linearGradient></defs>
+      <path d="M13 25 L34 42 L48 12 L61 42 L87 10 L89 43 L108 26 L99 68 L22 68 Z" fill="url(#gold)" stroke="#ffe9a1" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M24 58 L97 58 L94 67 L27 67 Z" fill="#f8d46c"/><path d="M20 75 Q60 83 100 75 L97 82 Q60 90 23 82 Z" fill="url(#gold)"/>
+      <circle cx="13" cy="24" r="5" fill="#fff0a1"/><circle cx="48" cy="11" r="5" fill="#fff0a1"/><circle cx="87" cy="9" r="5" fill="#fff0a1"/><circle cx="108" cy="25" r="5" fill="#fff0a1"/>
+    </svg>
+    <h1 id="brandTitle">DISTRIBUIDORA<span>REZENDE</span></h1>
+    <p>Sistema de gestão comercial</p>
+  </header>
+  <section aria-label="Acesso ao sistema">
+    <h2>Bem-vindo de volta</h2>
+    <p class="intro">Entre com suas credenciais para acessar o sistema.</p>
+    <form id="loginForm">
+      <div class="field"><label for="username">Usuário</label><div class="inputwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg><input id="username" name="username" autocomplete="username" placeholder="Digite seu usuário" required></div></div>
+      <div class="field"><label for="password">Senha</label><div class="inputwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" required><button class="eye" type="button" id="togglePassword" aria-label="Mostrar senha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div class="forgot"><a href="#recuperacao" id="forgotLink">Esqueci minha senha</a></div>
+      <button class="submit" type="submit">ENTRAR NO SISTEMA</button>
+    </form>
+    <div class="notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg>Acesso restrito a usuários autorizados</div>
+    <p id="message" role="status" aria-live="polite" style="display:none;margin:16px 0 0;color:#ff777d;font-size:12px;text-align:center"></p>
+  </section>
+  <footer class="foot">DISTRIBUIDORA REZENDE · ACESSO ADMINISTRATIVO</footer>
+</main>
+<script>
+const message=document.getElementById('message');
+document.getElementById('togglePassword').addEventListener('click',()=>{const p=document.getElementById('password');const showing=p.type==='text';p.type=showing?'password':'text';document.getElementById('togglePassword').setAttribute('aria-label',showing?'Mostrar senha':'Ocultar senha')});
+document.getElementById('loginForm').addEventListener('submit',e=>{e.preventDefault();message.style.display='block';message.textContent='A tela visual está pronta, mas o login ainda precisa ser conectado e configurado com segurança. Esta prévia não autentica usuários.'});
+document.getElementById('forgotLink').addEventListener('click',e=>{e.preventDefault();message.style.display='block';message.textContent='A recuperação de senha será ativada após a configuração da autenticação no Supabase.'});
+</script>
+</body>
+</html>

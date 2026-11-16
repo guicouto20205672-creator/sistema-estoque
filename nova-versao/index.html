@@ -174,7 +174,7 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installProm
 window.addEventListener('appinstalled',()=>{installPromptEvent=null;const b=$('#installAppBtn');if(b)b.style.display='none';toast('Aplicativo instalado!')});
 async function installApp(){if(installPromptEvent){installPromptEvent.prompt();await installPromptEvent.userChoice;installPromptEvent=null;const b=$('#installAppBtn');if(b)b.style.display='none';return}openModal('Instalar Distribuidora Rezende','<p>Se estiver no Android, abra o menu do navegador e escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</p><p>No Windows, abra este sistema no Chrome ou Edge e use o ícone de instalação na barra de endereço ou o menu <strong>Instalar página como aplicativo</strong>.</p><p class="note">A opção pode variar conforme navegador e dispositivo. A primeira instalação precisa de internet.</p><div class="formactions"><button onclick="closeModal()">Entendi</button></div>')}
 updateNetworkStatus();
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=7',{updateViaCache:'none'}).then(reg=>reg.update()).catch(err=>console.warn('Atualização do aplicativo:',err)))}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=8',{updateViaCache:'none'}).then(reg=>reg.update()).catch(err=>console.warn('Atualização do aplicativo:',err)))}
 
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function setPage(page){currentPage=page;$$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('#sidebar').classList.remove('open');render();}
